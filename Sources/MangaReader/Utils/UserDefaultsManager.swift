@@ -11,7 +11,8 @@ class UserDefaultsManager: ObservableObject {
         downloadQuality: "downloadQuality",
         lastReadManga: "lastReadManga",
         libraryManga: "libraryManga",
-        favoriteManga: "favoriteManga"
+        favoriteManga: "favoriteManga",
+        torboxDownloads: "torboxDownloads"
     )
     
     @Published var readingMode: ReadingMode {
@@ -44,6 +45,14 @@ class UserDefaultsManager: ObservableObject {
         }
     }
     
+    @Published var torboxDownloads: [TorboxDownload] {
+        didSet {
+            if let data = try? JSONEncoder().encode(torboxDownloads) {
+                userDefaults.set(data, forKey: keys.torboxDownloads)
+            }
+        }
+    }
+    
     var lastReadMangaId: String? {
         get { userDefaults.string(forKey: keys.lastReadManga) }
         set { userDefaults.set(newValue, forKey: keys.lastReadManga) }
@@ -55,6 +64,13 @@ class UserDefaultsManager: ObservableObject {
         self.downloadQuality = userDefaults.string(forKey: keys.downloadQuality) ?? "high"
         self.libraryMangaIds = Set(userDefaults.stringArray(forKey: keys.libraryManga) ?? [])
         self.favoriteMangaIds = Set(userDefaults.stringArray(forKey: keys.favoriteManga) ?? [])
+        
+        if let data = userDefaults.data(forKey: keys.torboxDownloads),
+           let downloads = try? JSONDecoder().decode([TorboxDownload].self, from: data) {
+            self.torboxDownloads = downloads
+        } else {
+            self.torboxDownloads = []
+        }
     }
     
     func addToLibrary(mangaId: String) {
@@ -75,13 +91,42 @@ class UserDefaultsManager: ObservableObject {
             favoriteMangaIds.remove(mangaId)
         } else {
             favoriteMangaIds.insert(mangaId)
-            libraryMangaIds.insert(mangaId) // Also add to library
+            libraryMangaIds.insert(mangaId)
         }
     }
     
     func isFavorite(mangaId: String) -> Bool {
         favoriteMangaIds.contains(mangaId)
     }
+    
+    func saveTorboxDownload(mangaId: String, torrentHash: String, torrentName: String) {
+        let download = TorboxDownload(
+            mangaId: mangaId,
+            torrentHash: torrentHash,
+            torrentName: torrentName,
+            addedAt: Date()
+        )
+        if !torboxDownloads.contains(where: { $0.torrentHash == torrentHash }) {
+            torboxDownloads.append(download)
+        }
+    }
+    
+    func getTorboxDownloads(forMangaId mangaId: String) -> [TorboxDownload] {
+        torboxDownloads.filter { $0.mangaId == mangaId }
+    }
+    
+    func removeTorboxDownload(hash: String) {
+        torboxDownloads.removeAll { $0.torrentHash == hash }
+    }
+}
+
+struct TorboxDownload: Codable, Identifiable {
+    var id: String { torrentHash }
+    let mangaId: String
+    let torrentHash: String
+    let torrentName: String
+    let addedAt: Date
+}
     
     func saveReadingProgress(_ progress: ReadingProgress) {
         let key = "readingProgress_\(progress.mangaId)_\(progress.chapterId)"

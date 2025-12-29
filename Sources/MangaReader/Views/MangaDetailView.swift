@@ -95,7 +95,9 @@ struct MangaDetailView: View {
             ReaderView(chapter: chapter, mangaTitle: manga.title, mangaId: manga.id)
         }
         .sheet(isPresented: $showTorboxSearch) {
-            TorboxSearchSheet(mangaTitle: manga.title)
+            TorboxSearchSheet(mangaTitle: manga.title, mangaId: manga.id) {
+                // Download started callback
+            }
         }
         .alert("Error", isPresented: $showError) {
             Button("OK", role: .cancel) {}
@@ -367,6 +369,8 @@ struct ChapterCell: View {
 struct TorboxSearchSheet: View {
     @Environment(\.dismiss) var dismiss
     let mangaTitle: String
+    let mangaId: String
+    let onDownloadStarted: () -> Void
     
     @State private var searchQuery: String = ""
     @State private var searchResults: [TorrentSearchResult] = []
@@ -375,6 +379,7 @@ struct TorboxSearchSheet: View {
     @State private var errorMessage: String?
     @State private var isAdding = false
     @State private var addedHashes: Set<String> = []
+    @State private var showSuccess = false
     
     var body: some View {
         NavigationView {
@@ -409,7 +414,7 @@ struct TorboxSearchSheet: View {
                     // Results
                     if isSearching {
                         Spacer()
-                        ProgressView("Searching...")
+                        ProgressView("Searching Nyaa.si...")
                             .tint(.white)
                             .foregroundColor(.white)
                         Spacer()
@@ -482,9 +487,16 @@ struct TorboxSearchSheet: View {
                     .disabled(searchQuery.isEmpty || isSearching)
                 }
             }
+            .alert("Added to Torbox!", isPresented: $showSuccess) {
+                Button("OK") { }
+            } message: {
+                Text("The torrent has been added to your Torbox downloads and saved to your library.")
+            }
         }
         .onAppear {
             searchQuery = mangaTitle
+            // Auto-search on appear
+            Task { await search() }
         }
     }
     
@@ -512,8 +524,22 @@ struct TorboxSearchSheet: View {
             if let hash = result.hash {
                 addedHashes.insert(hash)
             }
+            
+            // Save manga to library when torrent is added
+            await MainActor.run {
+                UserDefaultsManager.shared.addToLibrary(mangaId: mangaId)
+                UserDefaultsManager.shared.saveTorboxDownload(
+                    mangaId: mangaId,
+                    torrentHash: result.hash ?? "",
+                    torrentName: result.name
+                )
+                onDownloadStarted()
+                showSuccess = true
+            }
         } catch {
-            errorMessage = "Failed to add: \(error.localizedDescription)"
+            await MainActor.run {
+                errorMessage = "Failed to add: \(error.localizedDescription)"
+            }
         }
     }
 }
