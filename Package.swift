@@ -4,7 +4,8 @@ import PackageDescription
 let package = Package(
     name: "MangaReader",
     platforms: [
-        .iOS(.v16)
+        .iOS(.v16),
+        .macOS(.v10_14)
     ],
     products: [
         .library(
@@ -22,6 +23,9 @@ let package = Package(
             dependencies: [
                 "Alamofire",
                 "Kingfisher"
+            ],
+            resources: [
+                .process("Info.plist")
             ]
         )
     ]
