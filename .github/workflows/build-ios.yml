@@ -22,4 +22,10 @@ jobs:
     
     - name: Build Project
       run: |
-        xcodebuild -scheme MangaReader -configuration Release -destination 'generic/platform=iOS' -derivedDataPath build
+        xcodebuild -scheme MangaReader -configuration Release -destination 'generic/platform=iOS' -archivePath build/MangaReader.xcarchive archive
+    
+    - name: Upload Build Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: MangaReader.xcarchive
+        path: build/MangaReader.xcarchive
