@@ -21,6 +21,4 @@ jobs:
         xcode-version: '15.0'
     
     - name: Build Project
-      run: |
-        cd MangaReader
-        swift build -c release
+      run: swift build -c release
