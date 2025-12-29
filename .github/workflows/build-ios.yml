@@ -29,33 +29,8 @@ jobs:
           -archivePath build/MangaReader.xcarchive \
           CODE_SIGNING_ALLOWED=NO
     
-    - name: Export IPA (Unsigned)
-      run: |
-        mkdir -p build/export
-        cat > build/ExportOptions.plist << 'EOF'
-        <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0">
-        <dict>
-          <key>signingStyle</key>
-          <string>manual</string>
-          <key>stripSwiftSymbols</key>
-          <true/>
-          <key>teamID</key>
-          <string></string>
-          <key>provisioningProfileMapping</key>
-          <dict/>
-        </dict>
-        </plist>
-        EOF
-        xcodebuild -exportArchive \
-          -archivePath build/MangaReader.xcarchive \
-          -exportOptionsPlist build/ExportOptions.plist \
-          -exportPath build/export \
-          -allowProvisioningUpdates
-    
-    - name: Upload IPA
+    - name: Upload Archive
       uses: actions/upload-artifact@v4
       with:
-        name: MangaReader.ipa
-        path: build/export/MangaReader.ipa
+        name: MangaReader.xcarchive
+        path: build/MangaReader.xcarchive
