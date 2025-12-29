@@ -7,7 +7,7 @@ let package = Package(
         .iOS(.v16)
     ],
     products: [
-        .library(
+        .executable(
             name: "MangaReader",
             targets: ["MangaReader"]
         )
@@ -17,7 +17,7 @@ let package = Package(
         .package(url: "https://github.com/onevcat/Kingfisher", from: "7.10.0")
     ],
     targets: [
-        .target(
+        .executableTarget(
             name: "MangaReader",
             dependencies: [
                 "Alamofire",
