@@ -13,15 +13,14 @@ let package = Package(
         )
     ],
     dependencies: [
-        // .package(url: "https://github.com/JRomainG/MangaDexLib", branch: "dev"),
         .package(url: "https://github.com/Alamofire/Alamofire", from: "5.8.0"),
         .package(url: "https://github.com/onevcat/Kingfisher", from: "7.10.0")
     ],
     targets: [
         .target(
             name: "MangaReader",
+            path: "MangaReader",
             dependencies: [
-                // "MangaDexLib",
                 "Alamofire",
                 "Kingfisher"
             ]
