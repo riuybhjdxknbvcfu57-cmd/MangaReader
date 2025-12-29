@@ -23,4 +23,4 @@ jobs:
     - name: Build Project
       run: |
         cd MangaReader
-        xcodebuild -scheme MangaReader -configuration Release -derivedDataPath build
+        swift build -c release
