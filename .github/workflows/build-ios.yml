@@ -27,20 +27,21 @@ jobs:
     - name: Export IPA
       run: |
         mkdir -p build/export
-        xcodebuild -exportArchive -archivePath build/MangaReader.xcarchive -exportPath build/export -allowProvisioningUpdates -exportOptionsPlist /dev/stdin <<'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>signingStyle</key>
-    <string>automatic</string>
-    <key>stripSwiftSymbols</key>
-    <true/>
-    <key>teamID</key>
-    <string></string>
-</dict>
-</plist>
-EOF
+        cat > /tmp/export.plist << 'PLIST'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>signingStyle</key>
+            <string>automatic</string>
+            <key>stripSwiftSymbols</key>
+            <true/>
+            <key>teamID</key>
+            <string></string>
+        </dict>
+        </plist>
+        PLIST
+        xcodebuild -exportArchive -archivePath build/MangaReader.xcarchive -exportPath build/export -allowProvisioningUpdates -exportOptionsPlist /tmp/export.plist
     
     - name: Upload IPA
       uses: actions/upload-artifact@v4
