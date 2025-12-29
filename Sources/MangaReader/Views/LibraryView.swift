@@ -156,7 +156,7 @@ struct LibraryMangaGridItem: View {
             return "\(manga.chapters.count) chapters"
         }
         
-        return "Last read: Ch \(Int(progress.chapterId.split(separator: "-").last ?? "")"
+        return "Last read: Ch \(Int(progress.chapterId.split(separator: "-").last ?? "") ?? 0)"
     }
 }
 

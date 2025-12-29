@@ -159,13 +159,6 @@ struct MangaDetailView: View {
             do {
                 let detailedManga = try await MangaDexService.shared.getMangaDetails(id: manga.id)
                 manga = detailedManga
-                
-                if let progress = UserDefaultsManager.shared.getReadingProgress(
-                    mangaId: manga.id,
-                    chapterId: manga.chapters.first?.id ?? ""
-                ) {
-                    isFavorite = false
-                }
             } catch {
                 errorMessage = "Failed to load manga details: \(error.localizedDescription)"
                 showError = true

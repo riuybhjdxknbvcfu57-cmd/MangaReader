@@ -196,8 +196,8 @@ struct MangaDexManga: Codable {
         var coverUrl: URL?
         var tags: [String] = []
         
-        if let titleAttributes = attributes.title.en {
-            title = titleAttributes
+        if let titleValue = attributes.title["en"] {
+            title = titleValue
         } else if let altTitle = attributes.altTitles.first?.values.first {
             title = altTitle
         }
@@ -224,7 +224,7 @@ struct MangaDexManga: Codable {
         return Manga(
             id: id,
             title: title,
-            description: attributes.description.en ?? "",
+            description: attributes.description["en"] ?? "",
             coverArt: coverUrl ?? defaultCover,
             authors: authors,
             tags: tags,
