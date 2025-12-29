@@ -29,8 +29,14 @@ jobs:
           -archivePath build/MangaReader.xcarchive \
           CODE_SIGNING_ALLOWED=NO
     
-    - name: Upload Archive
+    - name: Extract IPA from Archive
+      run: |
+        mkdir -p build/export
+        cd build/MangaReader.xcarchive/Products/Applications
+        zip -r ../../../export/MangaReader.ipa MangaReader.app
+    
+    - name: Upload IPA
       uses: actions/upload-artifact@v4
       with:
-        name: MangaReader.xcarchive
-        path: build/MangaReader.xcarchive
+        name: MangaReader.ipa
+        path: build/export/MangaReader.ipa
