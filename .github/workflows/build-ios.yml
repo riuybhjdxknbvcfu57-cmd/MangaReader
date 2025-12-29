@@ -21,4 +21,5 @@ jobs:
         xcode-version: '15.0'
     
     - name: Build Project
-      run: swift build -c release
+      run: |
+        xcodebuild -scheme MangaReader -configuration Release -destination 'generic/platform=iOS' -derivedDataPath build
