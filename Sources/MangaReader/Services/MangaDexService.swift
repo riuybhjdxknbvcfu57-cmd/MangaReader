@@ -10,11 +10,12 @@ class MangaDexService: ObservableObject {
     func searchManga(query: String, limit: Int = 20, offset: Int = 0) async throws -> [Manga] {
         var components = URLComponents(string: "\(baseURL)/manga")!
         
-        var queryItems: [URLQueryItem] = [
+        let queryItems: [URLQueryItem] = [
             URLQueryItem(name: "title", value: query),
             URLQueryItem(name: "limit", value: "\(limit)"),
             URLQueryItem(name: "offset", value: "\(offset)"),
             URLQueryItem(name: "contentRating[]", value: "safe"),
+            URLQueryItem(name: "contentRating[]", value: "suggestive"),
             URLQueryItem(name: "includes[]", value: "cover_art"),
             URLQueryItem(name: "includes[]", value: "author")
         ]
@@ -26,19 +27,18 @@ class MangaDexService: ObservableObject {
         }
         
         let (data, _) = try await URLSession.shared.data(from: url)
-        
         let response = try JSONDecoder().decode(MangaDexResponse.self, from: data)
-        
         return response.data.map { $0.toManga() }
     }
     
     func getPopularManga(limit: Int = 20, offset: Int = 0) async throws -> [Manga] {
         var components = URLComponents(string: "\(baseURL)/manga")!
         
-        var queryItems: [URLQueryItem] = [
+        let queryItems: [URLQueryItem] = [
             URLQueryItem(name: "limit", value: "\(limit)"),
             URLQueryItem(name: "offset", value: "\(offset)"),
             URLQueryItem(name: "contentRating[]", value: "safe"),
+            URLQueryItem(name: "contentRating[]", value: "suggestive"),
             URLQueryItem(name: "order[followedCount]", value: "desc"),
             URLQueryItem(name: "includes[]", value: "cover_art"),
             URLQueryItem(name: "includes[]", value: "author")
@@ -51,30 +51,20 @@ class MangaDexService: ObservableObject {
         }
         
         let (data, _) = try await URLSession.shared.data(from: url)
-        
         let response = try JSONDecoder().decode(MangaDexResponse.self, from: data)
-        
         return response.data.map { $0.toManga() }
     }
     
-    func getSeasonalManga() async throws -> [Manga] {
-        let calendar = Calendar.current
-        let now = Date()
-        
-        guard let threeMonthsAgo = calendar.date(byAdding: .month, value: -3, to: now) else {
-            return []
-        }
-        
-        let formatter = ISO8601DateFormatter()
-        let startDate = formatter.string(from: threeMonthsAgo)
-        
+    func getMangaByTag(tagId: String, limit: Int = 20, offset: Int = 0) async throws -> [Manga] {
         var components = URLComponents(string: "\(baseURL)/manga")!
         
-        var queryItems: [URLQueryItem] = [
-            URLQueryItem(name: "limit", value: "20"),
+        let queryItems: [URLQueryItem] = [
+            URLQueryItem(name: "limit", value: "\(limit)"),
+            URLQueryItem(name: "offset", value: "\(offset)"),
             URLQueryItem(name: "contentRating[]", value: "safe"),
-            URLQueryItem(name: "updatedAtSince", value: startDate),
-            URLQueryItem(name: "order[updatedAt]", value: "desc"),
+            URLQueryItem(name: "contentRating[]", value: "suggestive"),
+            URLQueryItem(name: "includedTags[]", value: tagId),
+            URLQueryItem(name: "order[followedCount]", value: "desc"),
             URLQueryItem(name: "includes[]", value: "cover_art"),
             URLQueryItem(name: "includes[]", value: "author")
         ]
@@ -86,16 +76,38 @@ class MangaDexService: ObservableObject {
         }
         
         let (data, _) = try await URLSession.shared.data(from: url)
-        
         let response = try JSONDecoder().decode(MangaDexResponse.self, from: data)
+        return response.data.map { $0.toManga() }
+    }
+    
+    func getRecentlyUpdated(limit: Int = 20, offset: Int = 0) async throws -> [Manga] {
+        var components = URLComponents(string: "\(baseURL)/manga")!
         
+        let queryItems: [URLQueryItem] = [
+            URLQueryItem(name: "limit", value: "\(limit)"),
+            URLQueryItem(name: "offset", value: "\(offset)"),
+            URLQueryItem(name: "contentRating[]", value: "safe"),
+            URLQueryItem(name: "contentRating[]", value: "suggestive"),
+            URLQueryItem(name: "order[latestUploadedChapter]", value: "desc"),
+            URLQueryItem(name: "includes[]", value: "cover_art"),
+            URLQueryItem(name: "includes[]", value: "author")
+        ]
+        
+        components.queryItems = queryItems
+        
+        guard let url = components.url else {
+            throw URLError(.badURL)
+        }
+        
+        let (data, _) = try await URLSession.shared.data(from: url)
+        let response = try JSONDecoder().decode(MangaDexResponse.self, from: data)
         return response.data.map { $0.toManga() }
     }
     
     func getMangaDetails(id: String) async throws -> Manga {
         var components = URLComponents(string: "\(baseURL)/manga/\(id)")!
         
-        var queryItems: [URLQueryItem] = [
+        let queryItems: [URLQueryItem] = [
             URLQueryItem(name: "includes[]", value: "cover_art"),
             URLQueryItem(name: "includes[]", value: "author"),
             URLQueryItem(name: "includes[]", value: "artist")
@@ -108,7 +120,6 @@ class MangaDexService: ObservableObject {
         }
         
         let (data, _) = try await URLSession.shared.data(from: url)
-        
         let response = try JSONDecoder().decode(MangaDexDetailResponse.self, from: data)
         
         let manga = response.data.toManga()
@@ -130,7 +141,7 @@ class MangaDexService: ObservableObject {
     func getChapters(mangaId: String, language: String = "en") async throws -> [Chapter] {
         var components = URLComponents(string: "\(baseURL)/manga/\(mangaId)/feed")!
         
-        var queryItems: [URLQueryItem] = [
+        let queryItems: [URLQueryItem] = [
             URLQueryItem(name: "translatedLanguage[]", value: language),
             URLQueryItem(name: "order[chapter]", value: "asc"),
             URLQueryItem(name: "limit", value: "500")
@@ -143,28 +154,54 @@ class MangaDexService: ObservableObject {
         }
         
         let (data, _) = try await URLSession.shared.data(from: url)
-        
         let response = try JSONDecoder().decode(MangaDexFeedResponse.self, from: data)
-        
-        return response.data.map { $0.toChapter() }
+        return response.data.compactMap { $0.toChapter() }
     }
     
     func getChapterPages(chapterId: String) async throws -> [URL] {
         let url = URL(string: "\(baseURL)/at-home/server/\(chapterId)")!
         
         let (data, _) = try await URLSession.shared.data(from: url)
-        
         let response = try JSONDecoder().decode(ChapterPagesResponse.self, from: data)
         
         let baseUrl = response.baseUrl
         let hash = response.chapter.hash
-        
         let sortedFiles = response.chapter.data.sorted { $0 < $1 }
         
         return sortedFiles.map { fileName in
             URL(string: "\(baseUrl)/data/\(hash)/\(fileName)")!
         }
     }
+    
+    func getTags() async throws -> [MangaTag] {
+        let url = URL(string: "\(baseURL)/manga/tag")!
+        let (data, _) = try await URLSession.shared.data(from: url)
+        let response = try JSONDecoder().decode(TagResponse.self, from: data)
+        return response.data.compactMap { tag -> MangaTag? in
+            guard let name = tag.attributes.name["en"] else { return nil }
+            return MangaTag(id: tag.id, name: name, group: tag.attributes.group)
+        }
+    }
+}
+
+struct MangaTag: Identifiable {
+    let id: String
+    let name: String
+    let group: String
+}
+
+struct TagResponse: Codable {
+    let data: [TagData]
+}
+
+struct TagData: Codable {
+    let id: String
+    let attributes: TagDataAttributes
+}
+
+struct TagDataAttributes: Codable {
+    let name: [String: String]
+    let group: String
 }
 
 struct MangaDexResponse: Codable {
@@ -198,6 +235,8 @@ struct MangaDexManga: Codable {
         
         if let titleValue = attributes.title["en"] {
             title = titleValue
+        } else if let firstTitle = attributes.title.values.first {
+            title = firstTitle
         } else if let altTitle = attributes.altTitles.first?.values.first {
             title = altTitle
         }
@@ -217,14 +256,14 @@ struct MangaDexManga: Codable {
             }
         }
         
-        tags = attributes.tags.map { $0.attributes.name.en }
+        tags = attributes.tags.compactMap { $0.attributes.name["en"] }
         
         let defaultCover = URL(string: "https://via.placeholder.com/512")!
         
         return Manga(
             id: id,
             title: title,
-            description: attributes.description["en"] ?? "",
+            description: attributes.description["en"] ?? attributes.description.values.first ?? "",
             coverArt: coverUrl ?? defaultCover,
             authors: authors,
             tags: tags,
@@ -249,11 +288,7 @@ struct Tag: Codable {
 }
 
 struct TagAttributes: Codable {
-    let name: NameObject
-}
-
-struct NameObject: Codable {
-    let en: String
+    let name: [String: String]
 }
 
 struct Relationship: Codable {
@@ -271,13 +306,16 @@ struct MangaDexChapter: Codable {
     let id: String
     let attributes: ChapterAttributes
     
-    func toChapter() -> Chapter {
+    func toChapter() -> Chapter? {
         let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let publishDate = formatter.date(from: attributes.publishAt) ?? Date()
+        
+        let chapterNum = Double(attributes.chapter ?? "0") ?? 0
         
         return Chapter(
             id: id,
-            number: attributes.chapter,
+            number: chapterNum,
             title: attributes.title,
             pages: [],
             publishDate: publishDate,
@@ -287,7 +325,7 @@ struct MangaDexChapter: Codable {
 }
 
 struct ChapterAttributes: Codable {
-    let chapter: Double
+    let chapter: String?
     let title: String?
     let publishAt: String
     let translatedLanguage: String

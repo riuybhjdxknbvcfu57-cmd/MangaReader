@@ -5,7 +5,6 @@ struct LibraryView: View {
     @State private var libraryManga: [Manga] = []
     @State private var showFavoritesOnly = false
     @State private var showDownloadedOnly = false
-    @State private var isEmpty = true
     
     var filteredManga: [Manga] {
         var result = libraryManga
@@ -25,7 +24,9 @@ struct LibraryView: View {
     
     var body: some View {
         NavigationView {
-            Group {
+            ZStack {
+                Color.black.ignoresSafeArea()
+                
                 if filteredManga.isEmpty {
                     emptyStateView
                 } else {
@@ -40,6 +41,7 @@ struct LibraryView: View {
                         Toggle("Downloaded Only", isOn: $showDownloadedOnly)
                     } label: {
                         Image(systemName: "line.3.horizontal.decrease.circle")
+                            .foregroundColor(.white)
                     }
                 }
             }
@@ -47,116 +49,87 @@ struct LibraryView: View {
     }
     
     private var emptyStateView: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 24) {
             Image(systemName: "books.vertical")
-                .font(.system(size: 60))
+                .font(.system(size: 64))
                 .foregroundColor(.gray)
             
             VStack(spacing: 8) {
                 Text("Your Library is Empty")
                     .font(.title2)
-                    .fontWeight(.semibold)
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
                 
                 Text("Browse and add manga to your library")
-                    .font(.body)
-                    .foregroundColor(.secondary)
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
             }
-            
-            NavigationLink("Browse Manga") {
-                BrowseView()
-            }
-            .buttonStyle(.borderedProminent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
     }
     
     private var mangaGridView: some View {
         ScrollView {
             LazyVGrid(columns: [
                 GridItem(.flexible()),
+                GridItem(.flexible()),
                 GridItem(.flexible())
             ], spacing: 16) {
                 ForEach(filteredManga) { manga in
                     NavigationLink(destination: MangaDetailView(manga: manga)) {
-                        LibraryMangaGridItem(manga: manga)
+                        LibraryMangaCard(manga: manga)
                     }
                     .buttonStyle(PlainButtonStyle())
                 }
             }
             .padding()
+            .padding(.bottom, 100)
         }
     }
 }
 
-struct LibraryMangaGridItem: View {
+struct LibraryMangaCard: View {
     let manga: Manga
-    @StateObject private var settings = UserDefaultsManager.shared
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ZStack(alignment: .topTrailing) {
                 AsyncImage(url: manga.coverArt) { phase in
                     switch phase {
-                    case .empty:
-                        ZStack {
-                            Color.gray.opacity(0.2)
-                            ProgressView()
-                        }
                     case .success(let image):
                         image
                             .resizable()
                             .aspectRatio(contentMode: .fill)
                     case .failure:
-                        ZStack {
-                            Color.gray.opacity(0.2)
-                            Image(systemName: "book.closed")
-                                .font(.largeTitle)
-                                .foregroundColor(.gray)
-                        }
-                    @unknown default:
-                        EmptyView()
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.3))
+                            .overlay(Image(systemName: "book.closed").foregroundColor(.gray))
+                    default:
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.3))
+                            .overlay(ProgressView())
                     }
                 }
-                .frame(height: 250)
-                .cornerRadius(8)
+                .frame(height: 160)
+                .cornerRadius(12)
                 .clipped()
                 
                 if manga.isFavorite {
                     Image(systemName: "heart.fill")
                         .foregroundColor(.red)
-                        .font(.title2)
-                        .padding(8)
-                        .background(Color.black.opacity(0.5))
+                        .padding(6)
+                        .background(Color.black.opacity(0.6))
                         .clipShape(Circle())
-                        .padding(8)
+                        .padding(6)
                 }
             }
             
-            VStack(alignment: .leading, spacing: 4) {
-                Text(manga.title)
-                    .font(.headline)
-                    .lineLimit(2)
-                
-                let progressText = getProgressText()
-                Text(progressText)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
+            Text(manga.title)
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(.white)
+                .lineLimit(2)
         }
-        .background(Color(.systemBackground))
-        .shadow(radius: 2)
-    }
-    
-    private func getProgressText() -> String {
-        guard let progress = UserDefaultsManager.shared.getReadingProgress(
-            mangaId: manga.id,
-            chapterId: manga.chapters.first?.id ?? ""
-        ) else {
-            return "\(manga.chapters.count) chapters"
-        }
-        
-        return "Last read: Ch \(Int(progress.chapterId.split(separator: "-").last ?? "") ?? 0)"
     }
 }
 
