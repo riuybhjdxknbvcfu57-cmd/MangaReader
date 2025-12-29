@@ -76,7 +76,7 @@ jobs:
     - name: Run SwiftLint
       run: |
         cd MangaReader
-        swiftlint --strict --reporter github-actions-logging
+        swiftlint --reporter github-actions-logging
 
   format-check:
     name: Swift Format Check

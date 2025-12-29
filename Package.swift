@@ -13,7 +13,7 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(url: "https://github.com/JRomainG/MangaDexLib", branch: "main"),
+        // .package(url: "https://github.com/JRomainG/MangaDexLib", branch: "dev"),
         .package(url: "https://github.com/Alamofire/Alamofire", from: "5.8.0"),
         .package(url: "https://github.com/onevcat/Kingfisher", from: "7.10.0")
     ],
@@ -21,7 +21,7 @@ let package = Package(
         .target(
             name: "MangaReader",
             dependencies: [
-                "MangaDexLib",
+                // "MangaDexLib",
                 "Alamofire",
                 "Kingfisher"
             ]
