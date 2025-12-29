@@ -152,16 +152,23 @@ struct TorrentDTO: Codable {
     let hash: String
     let size: Int64
     let progress: Double
-    let download_speed: Int64
-    let upload_speed: Int64
+    let downloadSpeed: Int64
+    let uploadSpeed: Int64
     let state: String
-    let created_at: String
+    let createdAt: String
     let files: [TorrentFileDTO]?
     let webdav: String?
     
+    enum CodingKeys: String, CodingKey {
+        case id, name, hash, size, progress, state, files, webdav
+        case downloadSpeed = "download_speed"
+        case uploadSpeed = "upload_speed"
+        case createdAt = "created_at"
+    }
+    
     func toTorrent() -> Torrent {
         let formatter = ISO8601DateFormatter()
-        let createdAt = formatter.date(from: created_at) ?? Date()
+        let createdAt = formatter.date(from: createdAt) ?? Date()
         
         let torrentFiles = files?.map { file -> TorrentFile in
             TorrentFile(
@@ -178,11 +185,12 @@ struct TorrentDTO: Codable {
             hash: hash,
             size: size,
             progress: progress,
-            downloadSpeed: download_speed,
-            uploadSpeed: upload_speed,
+            downloadSpeed: downloadSpeed,
+            uploadSpeed: uploadSpeed,
             status: state,
             createdAt: createdAt,
-            files: torrentFiles
+            files: torrentFiles,
+            webDavLink: webdav
         )
     }
 }

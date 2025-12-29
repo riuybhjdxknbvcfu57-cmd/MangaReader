@@ -53,6 +53,7 @@ struct Torrent: Identifiable, Codable {
     let status: String
     let createdAt: Date
     let files: [TorrentFile]
+    let webDavLink: String?
 }
 
 struct TorrentFile: Identifiable, Codable {

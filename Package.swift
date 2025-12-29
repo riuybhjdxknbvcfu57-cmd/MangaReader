@@ -4,8 +4,7 @@ import PackageDescription
 let package = Package(
     name: "MangaReader",
     platforms: [
-        .iOS(.v16),
-        .macOS(.v10_14)
+        .iOS(.v16)
     ],
     products: [
         .library(
