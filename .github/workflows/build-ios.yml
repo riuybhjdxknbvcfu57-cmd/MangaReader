@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     name: Build iOS App
-    runs-on: macos-13
+    runs-on: macos-14
     
     steps:
     - name: Checkout Repository
@@ -64,7 +64,7 @@ jobs:
 
   lint:
     name: SwiftLint
-    runs-on: macos-13
+    runs-on: macos-14
     
     steps:
     - name: Checkout Repository
@@ -80,7 +80,7 @@ jobs:
 
   format-check:
     name: Swift Format Check
-    runs-on: macos-13
+    runs-on: macos-14
     
     steps:
     - name: Checkout Repository
