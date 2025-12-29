@@ -41,13 +41,18 @@ jobs:
           <string>manual</string>
           <key>stripSwiftSymbols</key>
           <true/>
+          <key>teamID</key>
+          <string></string>
+          <key>provisioningProfileMapping</key>
+          <dict/>
         </dict>
         </plist>
         EOF
         xcodebuild -exportArchive \
           -archivePath build/MangaReader.xcarchive \
           -exportOptionsPlist build/ExportOptions.plist \
-          -exportPath build/export
+          -exportPath build/export \
+          -allowProvisioningUpdates
     
     - name: Upload IPA
       uses: actions/upload-artifact@v4
