@@ -4,6 +4,7 @@ class TorboxService: ObservableObject {
     static let shared = TorboxService()
     
     private let baseURL = "https://api.torbox.app/v1/api"
+    private let nyaaURL = "https://nyaa.si"
     private var apiKey: String?
     
     private init() {}
@@ -25,13 +26,27 @@ class TorboxService: ObservableObject {
         return response.data?.map { $0.toTorrent() } ?? []
     }
     
+    // Search torrents using Nyaa.si (manga/anime torrent indexer)
     func searchTorrents(query: String) async throws -> [TorrentSearchResult] {
         let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
-        let response: TorrentSearchResponse = try await makeRequest(
-            endpoint: "/torrents/search?query=\(encodedQuery)",
-            method: "GET"
-        )
-        return response.data ?? []
+        // Category 3 = Literature (Manga), sort by seeders
+        guard let url = URL(string: "\(nyaaURL)/?page=rss&q=\(encodedQuery)&c=3_0&s=seeders&o=desc") else {
+            throw URLError(.badURL)
+        }
+        
+        let (data, response) = try await URLSession.shared.data(from: url)
+        
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        
+        return parseNyaaRSS(data: data)
+    }
+    
+    private func parseNyaaRSS(data: Data) -> [TorrentSearchResult] {
+        let parser = NyaaRSSParser(data: data)
+        return parser.parse()
     }
     
     func addMagnet(magnet: String) async throws -> AddTorrentResponse {
@@ -253,4 +268,102 @@ struct TorrentFileDTO: Codable {
 struct TorboxErrorResponse: Codable {
     let detail: String?
     let error: String?
+}
+
+// MARK: - Nyaa RSS Parser
+
+class NyaaRSSParser: NSObject, XMLParserDelegate {
+    private var data: Data
+    private var results: [TorrentSearchResult] = []
+    private var currentElement = ""
+    private var currentTitle = ""
+    private var currentLink = ""
+    private var currentSize: Int64 = 0
+    private var currentSeeders = 0
+    private var currentLeechers = 0
+    private var currentHash = ""
+    private var inItem = false
+    
+    init(data: Data) {
+        self.data = data
+    }
+    
+    func parse() -> [TorrentSearchResult] {
+        let parser = XMLParser(data: data)
+        parser.delegate = self
+        parser.parse()
+        return results
+    }
+    
+    func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName qName: String?, attributes attributeDict: [String : String] = [:]) {
+        currentElement = elementName
+        if elementName == "item" {
+            inItem = true
+            currentTitle = ""
+            currentLink = ""
+            currentSize = 0
+            currentSeeders = 0
+            currentLeechers = 0
+            currentHash = ""
+        }
+    }
+    
+    func parser(_ parser: XMLParser, foundCharacters string: String) {
+        guard inItem else { return }
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        
+        switch currentElement {
+        case "title":
+            currentTitle += trimmed
+        case "link":
+            currentLink += trimmed
+        case "nyaa:size":
+            currentSize = parseSize(trimmed)
+        case "nyaa:seeders":
+            currentSeeders = Int(trimmed) ?? 0
+        case "nyaa:leechers":
+            currentLeechers = Int(trimmed) ?? 0
+        case "nyaa:infoHash":
+            currentHash += trimmed
+        default:
+            break
+        }
+    }
+    
+    func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName qName: String?) {
+        if elementName == "item" && inItem {
+            let magnet = "magnet:?xt=urn:btih:\(currentHash)&dn=\(currentTitle.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? currentTitle)"
+            
+            let result = TorrentSearchResult(
+                id: currentHash,
+                name: currentTitle,
+                size: currentSize,
+                seeders: currentSeeders,
+                leechers: currentLeechers,
+                magnet: magnet,
+                hash: currentHash
+            )
+            results.append(result)
+            inItem = false
+        }
+        currentElement = ""
+    }
+    
+    private func parseSize(_ sizeString: String) -> Int64 {
+        let parts = sizeString.components(separatedBy: " ")
+        guard parts.count >= 2, let value = Double(parts[0]) else { return 0 }
+        
+        let unit = parts[1].uppercased()
+        switch unit {
+        case "GIB", "GB":
+            return Int64(value * 1024 * 1024 * 1024)
+        case "MIB", "MB":
+            return Int64(value * 1024 * 1024)
+        case "KIB", "KB":
+            return Int64(value * 1024)
+        default:
+            return Int64(value)
+        }
+    }
 }
