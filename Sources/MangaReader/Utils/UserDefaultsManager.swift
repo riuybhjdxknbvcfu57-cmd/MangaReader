@@ -118,15 +118,6 @@ class UserDefaultsManager: ObservableObject {
     func removeTorboxDownload(hash: String) {
         torboxDownloads.removeAll { $0.torrentHash == hash }
     }
-}
-
-struct TorboxDownload: Codable, Identifiable {
-    var id: String { torrentHash }
-    let mangaId: String
-    let torrentHash: String
-    let torrentName: String
-    let addedAt: Date
-}
     
     func saveReadingProgress(_ progress: ReadingProgress) {
         let key = "readingProgress_\(progress.mangaId)_\(progress.chapterId)"
@@ -159,4 +150,12 @@ struct TorboxDownload: Codable, Identifiable {
         }
         return bookmarks
     }
+}
+
+struct TorboxDownload: Codable, Identifiable {
+    var id: String { torrentHash }
+    let mangaId: String
+    let torrentHash: String
+    let torrentName: String
+    let addedAt: Date
 }
