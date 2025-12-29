@@ -4,53 +4,78 @@ struct MangaDetailView: View {
     @State private var manga: Manga
     @State private var isLoading = true
     @State private var selectedChapter: Chapter?
-    @State private var showTorboxFiles = false
-    @State private var torboxFiles: [TorboxFile] = []
+    @State private var showTorboxSearch = false
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var isFavorite = false
-    @State private var coverImage: Image?
     
     init(manga: Manga) {
         _manga = State(initialValue: manga)
     }
     
     var body: some View {
-        ZStack {
-            backgroundGradient
-            
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 0) {
-                    headerSection
-                    contentSection
+        GeometryReader { geo in
+            ZStack {
+                // Dynamic poster background
+                AsyncImage(url: manga.coverArt) { phase in
+                    if case .success(let image) = phase {
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: geo.size.width, height: geo.size.height)
+                            .blur(radius: 30)
+                            .scaleEffect(1.2)
+                    }
                 }
-            }
-            
-            if isLoading {
-                LoadingOverlay()
+                .ignoresSafeArea()
+                
+                // Dark gradient overlay
+                LinearGradient(
+                    stops: [
+                        .init(color: .black.opacity(0.3), location: 0),
+                        .init(color: .black.opacity(0.7), location: 0.3),
+                        .init(color: .black.opacity(0.95), location: 0.6),
+                        .init(color: .black, location: 1)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+                
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        // Header with cover
+                        headerSection(geo: geo)
+                        
+                        // Content
+                        contentSection
+                    }
+                }
+                
+                if isLoading {
+                    Color.black.opacity(0.5).ignoresSafeArea()
+                    ProgressView()
+                        .tint(.white)
+                        .scaleEffect(1.5)
+                }
             }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                HStack(spacing: 16) {
-                    Button(action: { loadTorboxFiles(); showTorboxFiles = true }) {
-                        Image(systemName: "externaldrive")
-                            .foregroundColor(.white)
-                    }
-                    
-                    Button(action: { isFavorite.toggle() }) {
-                        Image(systemName: isFavorite ? "heart.fill" : "heart")
-                            .foregroundColor(isFavorite ? .red : .white)
-                    }
+                Button(action: { isFavorite.toggle() }) {
+                    Image(systemName: isFavorite ? "heart.fill" : "heart")
+                        .foregroundColor(isFavorite ? .red : .white)
+                        .font(.title3)
                 }
             }
         }
         .sheet(item: $selectedChapter) { chapter in
             ReaderView(chapter: chapter, mangaTitle: manga.title, mangaId: manga.id)
         }
-        .sheet(isPresented: $showTorboxFiles) {
-            TorboxFilesSheet(files: torboxFiles, mangaTitle: manga.title)
+        .sheet(isPresented: $showTorboxSearch) {
+            TorboxSearchSheet(mangaTitle: manga.title)
         }
         .alert("Error", isPresented: $showError) {
             Button("OK", role: .cancel) {}
@@ -62,32 +87,11 @@ struct MangaDetailView: View {
         }
     }
     
-    private var backgroundGradient: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            
-            AsyncImage(url: manga.coverArt) { phase in
-                if case .success(let image) = phase {
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .blur(radius: 50)
-                        .opacity(0.4)
-                }
-            }
-            .ignoresSafeArea()
-            
-            LinearGradient(
-                colors: [.clear, .black.opacity(0.8), .black],
-                startPoint: .top,
-                endPoint: .center
-            )
-            .ignoresSafeArea()
-        }
-    }
-    
-    private var headerSection: some View {
+    private func headerSection(geo: GeometryProxy) -> some View {
         VStack(spacing: 16) {
+            Spacer().frame(height: 60)
+            
+            // Cover image
             AsyncImage(url: manga.coverArt) { phase in
                 switch phase {
                 case .success(let image):
@@ -97,25 +101,25 @@ struct MangaDetailView: View {
                 case .failure:
                     Rectangle()
                         .fill(Color.gray.opacity(0.3))
-                        .overlay(Image(systemName: "book.closed").foregroundColor(.gray))
+                        .overlay(Image(systemName: "book.closed").font(.largeTitle).foregroundColor(.gray))
                 default:
                     Rectangle()
                         .fill(Color.gray.opacity(0.3))
-                        .overlay(ProgressView())
+                        .overlay(ProgressView().tint(.white))
                 }
             }
-            .frame(width: 180, height: 260)
-            .cornerRadius(16)
+            .frame(width: 160, height: 230)
+            .cornerRadius(12)
             .shadow(color: .black.opacity(0.5), radius: 20, x: 0, y: 10)
-            .padding(.top, 20)
             
+            // Title and info
             VStack(spacing: 8) {
                 Text(manga.title)
-                    .font(.title2)
+                    .font(.title3)
                     .fontWeight(.bold)
                     .foregroundColor(.white)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal)
+                    .padding(.horizontal, 20)
                 
                 if !manga.authors.isEmpty {
                     Text(manga.authors.joined(separator: ", "))
@@ -123,12 +127,29 @@ struct MangaDetailView: View {
                         .foregroundColor(.white.opacity(0.7))
                 }
                 
-                HStack(spacing: 16) {
-                    StatusBadge(text: manga.status.capitalized, color: statusColor)
-                    StatusBadge(text: "\(manga.chapters.count) Chapters", color: .blue)
+                // Status badges
+                HStack(spacing: 12) {
+                    StatusPill(text: manga.status.capitalized, color: statusColor)
+                    StatusPill(text: "\(manga.chapters.count) Ch", color: .blue)
+                }
+                .padding(.top, 4)
+            }
+            
+            // Action buttons
+            HStack(spacing: 16) {
+                ActionButton(icon: "play.fill", title: "Read", color: .blue) {
+                    if let firstChapter = manga.chapters.first {
+                        selectedChapter = firstChapter
+                    }
+                }
+                
+                ActionButton(icon: "arrow.down.circle", title: "Torbox", color: .orange) {
+                    showTorboxSearch = true
                 }
             }
+            .padding(.top, 8)
         }
+        .padding(.bottom, 20)
     }
     
     private var statusColor: Color {
@@ -141,84 +162,87 @@ struct MangaDetailView: View {
     }
     
     private var contentSection: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 20) {
+            // Tags
             if !manga.tags.isEmpty {
-                tagsSection
-            }
-            
-            if !manga.description.isEmpty {
-                descriptionSection
-            }
-            
-            chaptersSection
-        }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 24)
-                .fill(.ultraThinMaterial)
-        )
-        .padding(.top, 16)
-    }
-    
-    private var tagsSection: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(manga.tags, id: \.self) { tag in
-                    Text(tag)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.white.opacity(0.15))
-                        .foregroundColor(.white)
-                        .cornerRadius(16)
-                }
-            }
-        }
-    }
-    
-    private var descriptionSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Synopsis")
-                .font(.headline)
-                .foregroundColor(.white)
-            
-            Text(manga.description)
-                .font(.subheadline)
-                .foregroundColor(.white.opacity(0.8))
-                .lineLimit(6)
-        }
-    }
-    
-    private var chaptersSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Chapters")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                
-                Spacer()
-                
-                Text("\(manga.chapters.count) available")
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.6))
-            }
-            
-            if manga.chapters.isEmpty && !isLoading {
-                Text("No chapters available")
-                    .foregroundColor(.white.opacity(0.5))
-                    .frame(maxWidth: .infinity)
-                    .padding()
-            } else {
-                LazyVStack(spacing: 8) {
-                    ForEach(manga.chapters.reversed().prefix(50)) { chapter in
-                        ChapterRow(chapter: chapter, mangaId: manga.id) {
-                            selectedChapter = chapter
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(manga.tags.prefix(8), id: \.self) { tag in
+                            Text(tag)
+                                .font(.caption)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(Color.white.opacity(0.1))
+                                .foregroundColor(.white.opacity(0.8))
+                                .cornerRadius(12)
                         }
                     }
+                    .padding(.horizontal, 16)
                 }
             }
+            
+            // Synopsis
+            if !manga.description.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Synopsis")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    
+                    Text(manga.description)
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.7))
+                        .lineSpacing(4)
+                }
+                .padding(.horizontal, 16)
+            }
+            
+            // Chapters
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Chapters")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    
+                    Spacer()
+                    
+                    if !manga.chapters.isEmpty {
+                        Text("\(manga.chapters.count) available")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.5))
+                    }
+                }
+                .padding(.horizontal, 16)
+                
+                if manga.chapters.isEmpty && !isLoading {
+                    VStack(spacing: 12) {
+                        Image(systemName: "doc.text.magnifyingglass")
+                            .font(.system(size: 40))
+                            .foregroundColor(.gray)
+                        Text("No chapters found")
+                            .foregroundColor(.gray)
+                        Text("Try searching on Torbox")
+                            .font(.caption)
+                            .foregroundColor(.gray.opacity(0.7))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 40)
+                } else {
+                    LazyVStack(spacing: 1) {
+                        ForEach(manga.chapters.reversed().prefix(100)) { chapter in
+                            ChapterCell(chapter: chapter, mangaId: manga.id) {
+                                selectedChapter = chapter
+                            }
+                        }
+                    }
+                    .background(Color.white.opacity(0.05))
+                    .cornerRadius(12)
+                    .padding(.horizontal, 16)
+                }
+            }
+            
+            Spacer().frame(height: 100)
         }
+        .padding(.top, 16)
     }
     
     private func loadMangaDetails() async {
@@ -227,170 +251,312 @@ struct MangaDetailView: View {
             let detailedManga = try await MangaDexService.shared.getMangaDetails(id: manga.id)
             manga = detailedManga
         } catch {
-            errorMessage = "Failed to load manga details: \(error.localizedDescription)"
+            errorMessage = "Failed to load: \(error.localizedDescription)"
             showError = true
         }
         isLoading = false
     }
-    
-    private func loadTorboxFiles() {
-        Task {
-            do {
-                torboxFiles = try await TorboxService.shared.searchMangaFiles(mangaTitle: manga.title)
-            } catch {
-                await MainActor.run {
-                    errorMessage = "Failed to load Torbox files: \(error.localizedDescription)"
-                    showError = true
-                }
-            }
-        }
-    }
 }
 
-struct StatusBadge: View {
+struct StatusPill: View {
     let text: String
     let color: Color
     
     var body: some View {
         Text(text)
             .font(.caption)
-            .fontWeight(.semibold)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            .fontWeight(.medium)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
             .background(color.opacity(0.2))
             .foregroundColor(color)
             .cornerRadius(12)
     }
 }
 
-struct ChapterRow: View {
+struct ActionButton: View {
+    let icon: String
+    let title: String
+    let color: Color
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                Text(title)
+                    .fontWeight(.semibold)
+            }
+            .font(.subheadline)
+            .foregroundColor(.white)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 10)
+            .background(color)
+            .cornerRadius(20)
+        }
+    }
+}
+
+struct ChapterCell: View {
     let chapter: Chapter
     let mangaId: String
     let onTap: () -> Void
-    @State private var progress: ReadingProgress?
     
     var body: some View {
         Button(action: onTap) {
             HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Ch. \(Int(chapter.number))")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                        
-                        if let title = chapter.title, !title.isEmpty {
-                            Text("- \(title)")
-                                .font(.subheadline)
-                                .foregroundColor(.white.opacity(0.7))
-                                .lineLimit(1)
-                        }
-                    }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Chapter \(Int(chapter.number))")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.white)
                     
-                    Text(formatDate(chapter.publishDate))
-                        .font(.caption)
-                        .foregroundColor(.white.opacity(0.5))
+                    if let title = chapter.title, !title.isEmpty {
+                        Text(title)
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.6))
+                            .lineLimit(1)
+                    }
                 }
                 
                 Spacer()
                 
-                if let progress = progress {
-                    CircularProgress(value: Double(progress.lastPageRead) / Double(progress.totalPages))
-                        .frame(width: 24, height: 24)
-                }
+                Text(formatDate(chapter.publishDate))
+                    .font(.caption2)
+                    .foregroundColor(.white.opacity(0.4))
                 
                 Image(systemName: "chevron.right")
-                    .foregroundColor(.white.opacity(0.5))
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.3))
             }
-            .padding()
-            .background(Color.white.opacity(0.05))
-            .cornerRadius(12)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
         }
         .buttonStyle(PlainButtonStyle())
-        .onAppear {
-            progress = UserDefaultsManager.shared.getReadingProgress(mangaId: mangaId, chapterId: chapter.id)
-        }
     }
     
     private func formatDate(_ date: Date) -> String {
         let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .short
+        formatter.unitsStyle = .abbreviated
         return formatter.localizedString(for: date, relativeTo: Date())
     }
 }
 
-struct CircularProgress: View {
-    let value: Double
-    
-    var body: some View {
-        ZStack {
-            Circle()
-                .stroke(Color.white.opacity(0.2), lineWidth: 3)
-            
-            Circle()
-                .trim(from: 0, to: value)
-                .stroke(Color.green, style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-        }
-    }
-}
+// MARK: - Torbox Search Sheet
 
-struct TorboxFilesSheet: View {
+struct TorboxSearchSheet: View {
     @Environment(\.dismiss) var dismiss
-    let files: [TorboxFile]
     let mangaTitle: String
+    
+    @State private var searchQuery: String = ""
+    @State private var searchResults: [TorrentSearchResult] = []
+    @State private var isSearching = false
+    @State private var hasSearched = false
+    @State private var errorMessage: String?
+    @State private var isAdding = false
+    @State private var addedHashes: Set<String> = []
     
     var body: some View {
         NavigationView {
             ZStack {
                 Color.black.ignoresSafeArea()
                 
-                if files.isEmpty {
-                    VStack(spacing: 16) {
-                        Image(systemName: "externaldrive.badge.questionmark")
-                            .font(.system(size: 48))
+                VStack(spacing: 0) {
+                    // Search bar
+                    HStack {
+                        Image(systemName: "magnifyingglass")
                             .foregroundColor(.gray)
                         
-                        Text("No Torbox files found")
-                            .font(.headline)
+                        TextField("Search torrents...", text: $searchQuery)
                             .foregroundColor(.white)
+                            .autocapitalization(.none)
+                            .onSubmit {
+                                Task { await search() }
+                            }
                         
-                        Text("for \"\(mangaTitle)\"")
-                            .font(.subheadline)
-                            .foregroundColor(.gray)
-                    }
-                } else {
-                    List(files) { file in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(file.name)
-                                .font(.headline)
-                                .foregroundColor(.white)
-                            
-                            HStack {
-                                Text(formatBytes(file.size))
-                                    .font(.caption)
+                        if !searchQuery.isEmpty {
+                            Button(action: { searchQuery = "" }) {
+                                Image(systemName: "xmark.circle.fill")
                                     .foregroundColor(.gray)
-                                
-                                Spacer()
-                                
-                                Text(file.status)
-                                    .font(.caption)
-                                    .foregroundColor(file.status == "completed" ? .green : .orange)
                             }
                         }
-                        .listRowBackground(Color.white.opacity(0.05))
                     }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
+                    .padding()
+                    .background(Color.white.opacity(0.1))
+                    .cornerRadius(12)
+                    .padding()
+                    
+                    // Results
+                    if isSearching {
+                        Spacer()
+                        ProgressView("Searching...")
+                            .tint(.white)
+                            .foregroundColor(.white)
+                        Spacer()
+                    } else if let error = errorMessage {
+                        Spacer()
+                        VStack(spacing: 12) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.system(size: 40))
+                                .foregroundColor(.orange)
+                            Text(error)
+                                .foregroundColor(.white)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                        }
+                        Spacer()
+                    } else if searchResults.isEmpty && hasSearched {
+                        Spacer()
+                        VStack(spacing: 12) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 40))
+                                .foregroundColor(.gray)
+                            Text("No results found")
+                                .foregroundColor(.white)
+                            Text("Try a different search term")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                        Spacer()
+                    } else if searchResults.isEmpty {
+                        Spacer()
+                        VStack(spacing: 12) {
+                            Image(systemName: "arrow.down.doc")
+                                .font(.system(size: 40))
+                                .foregroundColor(.gray)
+                            Text("Search for manga torrents")
+                                .foregroundColor(.white)
+                            Text("Results will appear here")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                        Spacer()
+                    } else {
+                        List(searchResults, id: \.displayId) { result in
+                            TorrentResultRow(
+                                result: result,
+                                isAdded: addedHashes.contains(result.hash ?? ""),
+                                onAdd: { await addTorrent(result) }
+                            )
+                            .listRowBackground(Color.white.opacity(0.05))
+                            .listRowSeparator(.hidden)
+                        }
+                        .listStyle(.plain)
+                        .scrollContentBackground(.hidden)
+                    }
                 }
             }
-            .navigationTitle("Torbox Files")
+            .navigationTitle("Torbox Search")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") { dismiss() }
+                        .foregroundColor(.white)
+                }
+                
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") { dismiss() }
+                    Button("Search") {
+                        Task { await search() }
+                    }
+                    .foregroundColor(.blue)
+                    .disabled(searchQuery.isEmpty || isSearching)
                 }
             }
         }
+        .onAppear {
+            searchQuery = mangaTitle
+        }
+    }
+    
+    private func search() async {
+        guard !searchQuery.isEmpty else { return }
+        
+        isSearching = true
+        errorMessage = nil
+        hasSearched = true
+        
+        do {
+            searchResults = try await TorboxService.shared.searchTorrents(query: searchQuery)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        
+        isSearching = false
+    }
+    
+    private func addTorrent(_ result: TorrentSearchResult) async {
+        guard let magnet = result.magnet else { return }
+        
+        do {
+            _ = try await TorboxService.shared.addMagnet(magnet: magnet)
+            if let hash = result.hash {
+                addedHashes.insert(hash)
+            }
+        } catch {
+            errorMessage = "Failed to add: \(error.localizedDescription)"
+        }
+    }
+}
+
+struct TorrentResultRow: View {
+    let result: TorrentSearchResult
+    let isAdded: Bool
+    let onAdd: () async -> Void
+    
+    @State private var isAdding = false
+    
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(result.name)
+                    .font(.subheadline)
+                    .foregroundColor(.white)
+                    .lineLimit(2)
+                
+                HStack(spacing: 12) {
+                    if let size = result.size {
+                        Label(formatBytes(size), systemImage: "doc")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                    
+                    if let seeders = result.seeders {
+                        Label("\(seeders)", systemImage: "arrow.up")
+                            .font(.caption)
+                            .foregroundColor(.green)
+                    }
+                    
+                    if let leechers = result.leechers {
+                        Label("\(leechers)", systemImage: "arrow.down")
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            if isAdded {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+            } else if isAdding {
+                ProgressView()
+                    .tint(.white)
+            } else {
+                Button(action: {
+                    isAdding = true
+                    Task {
+                        await onAdd()
+                        isAdding = false
+                    }
+                }) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title2)
+                        .foregroundColor(.blue)
+                }
+            }
+        }
+        .padding(.vertical, 8)
     }
     
     private func formatBytes(_ bytes: Int64) -> String {

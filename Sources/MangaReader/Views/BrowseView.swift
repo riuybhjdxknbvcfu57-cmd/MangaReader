@@ -9,6 +9,8 @@ struct BrowseView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var featuredManga: Manga?
+    @State private var isSearching = false
+    @State private var searchResults: [Manga] = []
     
     var body: some View {
         NavigationView {
@@ -17,14 +19,14 @@ struct BrowseView: View {
                 
                 ScrollView(.vertical, showsIndicators: false) {
                     LazyVStack(spacing: 24) {
-                        if let featured = featuredManga {
-                            HeroBanner(manga: featured)
-                        }
-                        
                         if !searchText.isEmpty {
-                            SearchResultsSection(searchText: searchText)
+                            searchResultsSection
                         } else {
-                            MangaRowSection(title: "🔥 Popular Now", manga: $popularManga, loadMore: loadMorePopular)
+                            if let featured = featuredManga {
+                                HeroBanner(manga: featured)
+                            }
+                            
+                            MangaRowSection(title: "🔥 Popular", manga: $popularManga, loadMore: loadMorePopular)
                             
                             MangaRowSection(title: "📖 Recently Updated", manga: $recentManga, loadMore: loadMoreRecent)
                             
@@ -32,20 +34,36 @@ struct BrowseView: View {
                                 GenreRowSection(row: $row)
                             }
                         }
+                        
+                        Spacer().frame(height: 80)
                     }
-                    .padding(.bottom, 100)
                 }
                 .refreshable {
                     await loadInitialData()
                 }
                 
-                if isLoading {
-                    LoadingOverlay()
+                if isLoading && popularManga.isEmpty {
+                    Color.black.opacity(0.8).ignoresSafeArea()
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .tint(.white)
+                            .scaleEffect(1.5)
+                        Text("Loading...")
+                            .foregroundColor(.white)
+                    }
                 }
             }
-            .navigationTitle("")
-            .navigationBarHidden(true)
+            .navigationTitle("Browse")
+            .navigationBarTitleDisplayMode(.large)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarBackground(Color.black.opacity(0.9), for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .searchable(text: $searchText, prompt: "Search manga...")
+            .onChange(of: searchText) { newValue in
+                Task {
+                    await performSearch(query: newValue)
+                }
+            }
         }
         .task {
             await loadInitialData()
@@ -55,6 +73,67 @@ struct BrowseView: View {
         } message: {
             Text(errorMessage)
         }
+    }
+    
+    private var searchResultsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if isSearching {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                        .tint(.white)
+                    Spacer()
+                }
+                .padding(.top, 40)
+            } else if searchResults.isEmpty && !searchText.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 40))
+                        .foregroundColor(.gray)
+                    Text("No results for \"\(searchText)\"")
+                        .foregroundColor(.white)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 60)
+            } else {
+                Text("Results")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                
+                LazyVGrid(columns: [
+                    GridItem(.flexible()),
+                    GridItem(.flexible()),
+                    GridItem(.flexible())
+                ], spacing: 12) {
+                    ForEach(searchResults) { manga in
+                        NavigationLink(destination: MangaDetailView(manga: manga)) {
+                            MangaCard(manga: manga)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
+    }
+    
+    private func performSearch(query: String) async {
+        guard !query.isEmpty else {
+            searchResults = []
+            return
+        }
+        
+        isSearching = true
+        do {
+            try await Task.sleep(nanoseconds: 300_000_000) // Debounce
+            if searchText == query {
+                searchResults = try await MangaDexService.shared.searchManga(query: query)
+            }
+        } catch {}
+        isSearching = false
     }
     
     private func loadInitialData() async {
@@ -70,7 +149,7 @@ struct BrowseView: View {
             recentManga = recentResult
             featuredManga = popularResult.first
             
-            let genreTags = tagsResult.filter { $0.group == "genre" }.prefix(8)
+            let genreTags = tagsResult.filter { $0.group == "genre" }.prefix(6)
             genreRows = genreTags.map { GenreRow(tag: $0, manga: [], offset: 0, isLoading: false) }
             
             for i in genreRows.indices {
@@ -109,7 +188,6 @@ struct GenreRow: Identifiable {
 
 struct HeroBanner: View {
     let manga: Manga
-    @State private var dominantColor: Color = .purple
     
     var body: some View {
         NavigationLink(destination: MangaDetailView(manga: manga)) {
@@ -124,48 +202,51 @@ struct HeroBanner: View {
                         Rectangle().fill(Color.gray.opacity(0.3))
                     }
                 }
-                .frame(height: 400)
+                .frame(height: 380)
                 .clipped()
                 
                 LinearGradient(
-                    colors: [.clear, .black.opacity(0.8), .black],
+                    colors: [.clear, .black.opacity(0.7), .black],
                     startPoint: .top,
                     endPoint: .bottom
                 )
                 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("FEATURED")
-                        .font(.caption)
+                        .font(.caption2)
                         .fontWeight(.bold)
-                        .foregroundColor(.white.opacity(0.7))
+                        .foregroundColor(.white.opacity(0.8))
                         .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
+                        .padding(.vertical, 3)
                         .background(Color.white.opacity(0.2))
                         .cornerRadius(4)
                     
                     Text(manga.title)
-                        .font(.title)
+                        .font(.title2)
                         .fontWeight(.bold)
                         .foregroundColor(.white)
                         .lineLimit(2)
                     
-                    Text(manga.description)
-                        .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.8))
-                        .lineLimit(2)
+                    if !manga.description.isEmpty {
+                        Text(manga.description)
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.7))
+                            .lineLimit(2)
+                    }
                     
-                    HStack {
+                    HStack(spacing: 6) {
                         ForEach(manga.tags.prefix(3), id: \.self) { tag in
                             Text(tag)
                                 .font(.caption2)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
-                                .background(.ultraThinMaterial)
-                                .cornerRadius(12)
+                                .background(Color.white.opacity(0.15))
+                                .foregroundColor(.white.opacity(0.9))
+                                .cornerRadius(10)
                         }
                     }
                 }
-                .padding(20)
+                .padding(16)
             }
         }
         .buttonStyle(PlainButtonStyle())
@@ -180,7 +261,7 @@ struct MangaRowSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
-                .font(.title2)
+                .font(.title3)
                 .fontWeight(.bold)
                 .foregroundColor(.white)
                 .padding(.horizontal)
@@ -211,7 +292,7 @@ struct GenreRowSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(row.tag.name)
-                .font(.title2)
+                .font(.title3)
                 .fontWeight(.bold)
                 .foregroundColor(.white)
                 .padding(.horizontal)
@@ -232,7 +313,8 @@ struct GenreRowSection: View {
                     
                     if row.isLoading {
                         ProgressView()
-                            .frame(width: 140, height: 200)
+                            .tint(.white)
+                            .frame(width: 120, height: 180)
                     }
                 }
                 .padding(.horizontal)
@@ -251,7 +333,6 @@ struct GenreRowSection: View {
                     offset: row.manga.count
                 )
                 row.manga.append(contentsOf: more)
-                row.offset = row.manga.count
             } catch {}
             row.isLoading = false
         }
@@ -262,7 +343,7 @@ struct MangaCard: View {
     let manga: Manga
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             AsyncImage(url: manga.coverArt) { phase in
                 switch phase {
                 case .success(let image):
@@ -271,92 +352,27 @@ struct MangaCard: View {
                         .aspectRatio(contentMode: .fill)
                 case .failure:
                     Rectangle()
-                        .fill(Color.gray.opacity(0.3))
+                        .fill(Color.gray.opacity(0.2))
                         .overlay(
                             Image(systemName: "book.closed")
                                 .foregroundColor(.gray)
                         )
                 default:
                     Rectangle()
-                        .fill(Color.gray.opacity(0.3))
-                        .overlay(ProgressView())
+                        .fill(Color.gray.opacity(0.2))
+                        .overlay(ProgressView().tint(.white))
                 }
             }
-            .frame(width: 140, height: 200)
-            .cornerRadius(12)
+            .frame(width: 120, height: 170)
+            .cornerRadius(8)
             .clipped()
-            .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
             
             Text(manga.title)
                 .font(.caption)
                 .fontWeight(.medium)
                 .foregroundColor(.white)
                 .lineLimit(2)
-                .frame(width: 140, alignment: .leading)
+                .frame(width: 120, alignment: .leading)
         }
-    }
-}
-
-struct SearchResultsSection: View {
-    let searchText: String
-    @State private var results: [Manga] = []
-    @State private var isSearching = false
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Search Results")
-                .font(.title2)
-                .fontWeight(.bold)
-                .foregroundColor(.white)
-                .padding(.horizontal)
-            
-            if isSearching {
-                ProgressView()
-                    .frame(maxWidth: .infinity)
-                    .padding()
-            } else {
-                LazyVGrid(columns: [
-                    GridItem(.flexible()),
-                    GridItem(.flexible()),
-                    GridItem(.flexible())
-                ], spacing: 16) {
-                    ForEach(results) { manga in
-                        NavigationLink(destination: MangaDetailView(manga: manga)) {
-                            MangaCard(manga: manga)
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                    }
-                }
-                .padding(.horizontal)
-            }
-        }
-        .onChange(of: searchText) { newValue in
-            Task {
-                isSearching = true
-                do {
-                    results = try await MangaDexService.shared.searchManga(query: newValue)
-                } catch {}
-                isSearching = false
-            }
-        }
-    }
-}
-
-struct LoadingOverlay: View {
-    var body: some View {
-        ZStack {
-            Color.black.opacity(0.7)
-            VStack(spacing: 16) {
-                ProgressView()
-                    .scaleEffect(1.5)
-                    .tint(.white)
-                Text("Loading...")
-                    .foregroundColor(.white)
-            }
-            .padding(32)
-            .background(.ultraThinMaterial)
-            .cornerRadius(16)
-        }
-        .ignoresSafeArea()
     }
 }
