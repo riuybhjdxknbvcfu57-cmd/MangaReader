@@ -29,35 +29,14 @@ jobs:
           -archivePath build/MangaReader.xcarchive \
           CODE_SIGNING_ALLOWED=NO
     
-    - name: Extract IPA from Archive
+    - name: Create IPA
       run: |
-        mkdir -p build/export
-        cd build/MangaReader.xcarchive/Products/Applications
-        zip -r ../../../export/MangaReader.ipa MangaReader.app
-    
-    - name: Create Dummy Signing Certificate
-      run: |
-        # Create a self-signed certificate for signing
-        openssl req -x509 -newkey rsa:4096 -keyout build/key.pem -out build/cert.pem -days 365 -nodes \
-          -subj "/C=US/ST=State/L=City/O=Org/CN=MangaReader"
-        
-        # Convert to PKCS12 format
-        openssl pkcs12 -export -out build/cert.p12 -inkey build/key.pem -in build/cert.pem -passout pass:password
-    
-    - name: Sign IPA
-      run: |
-        cd build/export
-        unzip -q MangaReader.ipa
-        
-        # Sign the app bundle
-        codesign -f -s - --deep Payload/MangaReader.app
-        
-        # Re-zip as IPA
-        rm MangaReader.ipa
-        zip -r MangaReader.ipa Payload/ SwiftSupport/ 2>/dev/null || zip -r MangaReader.ipa Payload/
+        mkdir -p build/Payload
+        cp -r build/MangaReader.xcarchive/Products/Applications/MangaReader.app build/Payload/
+        cd build && zip -r MangaReader.ipa Payload
     
     - name: Upload IPA
       uses: actions/upload-artifact@v4
       with:
-        name: MangaReader.ipa
-        path: build/export/MangaReader.ipa
+        name: MangaReader
+        path: build/MangaReader.ipa
