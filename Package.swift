@@ -19,7 +19,6 @@ let package = Package(
     targets: [
         .target(
             name: "MangaReader",
-            path: "MangaReader",
             dependencies: [
                 "Alamofire",
                 "Kingfisher"
