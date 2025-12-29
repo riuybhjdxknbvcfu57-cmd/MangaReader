@@ -276,11 +276,12 @@ class NyaaRSSParser: NSObject, XMLParserDelegate {
     private var data: Data
     private var results: [TorrentSearchResult] = []
     private var currentElement = ""
+    private var currentQName = ""
     private var currentTitle = ""
     private var currentLink = ""
-    private var currentSize: Int64 = 0
-    private var currentSeeders = 0
-    private var currentLeechers = 0
+    private var currentSizeStr = ""
+    private var currentSeedersStr = ""
+    private var currentLeechersStr = ""
     private var currentHash = ""
     private var inItem = false
     
@@ -291,19 +292,22 @@ class NyaaRSSParser: NSObject, XMLParserDelegate {
     func parse() -> [TorrentSearchResult] {
         let parser = XMLParser(data: data)
         parser.delegate = self
+        parser.shouldProcessNamespaces = false
+        parser.shouldReportNamespacePrefixes = false
         parser.parse()
         return results
     }
     
     func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName qName: String?, attributes attributeDict: [String : String] = [:]) {
         currentElement = elementName
+        currentQName = qName ?? elementName
         if elementName == "item" {
             inItem = true
             currentTitle = ""
             currentLink = ""
-            currentSize = 0
-            currentSeeders = 0
-            currentLeechers = 0
+            currentSizeStr = ""
+            currentSeedersStr = ""
+            currentLeechersStr = ""
             currentHash = ""
         }
     }
@@ -313,34 +317,40 @@ class NyaaRSSParser: NSObject, XMLParserDelegate {
         let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         
-        switch currentElement {
-        case "title":
+        // Handle both namespaced (nyaa:seeders) and local (seeders) element names
+        let elementLower = currentElement.lowercased()
+        let qNameLower = currentQName.lowercased()
+        
+        if elementLower == "title" || qNameLower == "title" {
             currentTitle += trimmed
-        case "link":
+        } else if elementLower == "link" || qNameLower == "link" {
             currentLink += trimmed
-        case "nyaa:size":
-            currentSize = parseSize(trimmed)
-        case "nyaa:seeders":
-            currentSeeders = Int(trimmed) ?? 0
-        case "nyaa:leechers":
-            currentLeechers = Int(trimmed) ?? 0
-        case "nyaa:infoHash":
+        } else if elementLower == "size" || qNameLower == "nyaa:size" || currentQName.hasSuffix(":size") {
+            currentSizeStr += trimmed
+        } else if elementLower == "seeders" || qNameLower == "nyaa:seeders" || currentQName.hasSuffix(":seeders") {
+            currentSeedersStr += trimmed
+        } else if elementLower == "leechers" || qNameLower == "nyaa:leechers" || currentQName.hasSuffix(":leechers") {
+            currentLeechersStr += trimmed
+        } else if elementLower == "infohash" || qNameLower == "nyaa:infohash" || currentQName.hasSuffix(":infoHash") || currentQName.hasSuffix(":infohash") {
             currentHash += trimmed
-        default:
-            break
         }
     }
     
     func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName qName: String?) {
         if elementName == "item" && inItem {
+            guard !currentHash.isEmpty else {
+                inItem = false
+                return
+            }
+            
             let magnet = "magnet:?xt=urn:btih:\(currentHash)&dn=\(currentTitle.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? currentTitle)"
             
             let result = TorrentSearchResult(
                 id: currentHash,
                 name: currentTitle,
-                size: currentSize,
-                seeders: currentSeeders,
-                leechers: currentLeechers,
+                size: parseSize(currentSizeStr),
+                seeders: Int(currentSeedersStr) ?? 0,
+                leechers: Int(currentLeechersStr) ?? 0,
                 magnet: magnet,
                 hash: currentHash
             )
@@ -348,6 +358,7 @@ class NyaaRSSParser: NSObject, XMLParserDelegate {
             inItem = false
         }
         currentElement = ""
+        currentQName = ""
     }
     
     private func parseSize(_ sizeString: String) -> Int64 {
