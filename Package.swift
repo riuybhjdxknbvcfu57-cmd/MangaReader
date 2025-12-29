@@ -24,8 +24,8 @@ let package = Package(
                 "Alamofire",
                 "Kingfisher"
             ],
-            resources: [
-                .process("Info.plist")
+            exclude: [
+                "Info.plist"
             ]
         )
     ]
