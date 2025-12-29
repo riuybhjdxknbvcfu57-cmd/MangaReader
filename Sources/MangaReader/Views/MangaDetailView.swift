@@ -7,10 +7,18 @@ struct MangaDetailView: View {
     @State private var showTorboxSearch = false
     @State private var showError = false
     @State private var errorMessage = ""
-    @State private var isFavorite = false
+    @StateObject private var settings = UserDefaultsManager.shared
     
     init(manga: Manga) {
         _manga = State(initialValue: manga)
+    }
+    
+    private var isFavorite: Bool {
+        settings.isFavorite(mangaId: manga.id)
+    }
+    
+    private var isInLibrary: Bool {
+        settings.isInLibrary(mangaId: manga.id)
     }
     
     var body: some View {
@@ -64,10 +72,22 @@ struct MangaDetailView: View {
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button(action: { isFavorite.toggle() }) {
-                    Image(systemName: isFavorite ? "heart.fill" : "heart")
-                        .foregroundColor(isFavorite ? .red : .white)
-                        .font(.title3)
+                HStack(spacing: 12) {
+                    Button(action: {
+                        settings.addToLibrary(mangaId: manga.id)
+                    }) {
+                        Image(systemName: isInLibrary ? "bookmark.fill" : "bookmark")
+                            .foregroundColor(isInLibrary ? .blue : .white)
+                            .font(.title3)
+                    }
+                    
+                    Button(action: {
+                        settings.toggleFavorite(mangaId: manga.id)
+                    }) {
+                        Image(systemName: isFavorite ? "heart.fill" : "heart")
+                            .foregroundColor(isFavorite ? .red : .white)
+                            .font(.title3)
+                    }
                 }
             }
         }

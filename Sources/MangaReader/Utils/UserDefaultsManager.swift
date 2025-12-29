@@ -9,7 +9,9 @@ class UserDefaultsManager: ObservableObject {
         readingMode: "readingMode",
         autoDownload: "autoDownload",
         downloadQuality: "downloadQuality",
-        lastReadManga: "lastReadManga"
+        lastReadManga: "lastReadManga",
+        libraryManga: "libraryManga",
+        favoriteManga: "favoriteManga"
     )
     
     @Published var readingMode: ReadingMode {
@@ -30,6 +32,18 @@ class UserDefaultsManager: ObservableObject {
         }
     }
     
+    @Published var libraryMangaIds: Set<String> {
+        didSet {
+            userDefaults.set(Array(libraryMangaIds), forKey: keys.libraryManga)
+        }
+    }
+    
+    @Published var favoriteMangaIds: Set<String> {
+        didSet {
+            userDefaults.set(Array(favoriteMangaIds), forKey: keys.favoriteManga)
+        }
+    }
+    
     var lastReadMangaId: String? {
         get { userDefaults.string(forKey: keys.lastReadManga) }
         set { userDefaults.set(newValue, forKey: keys.lastReadManga) }
@@ -39,6 +53,34 @@ class UserDefaultsManager: ObservableObject {
         self.readingMode = ReadingMode(rawValue: userDefaults.string(forKey: keys.readingMode) ?? "vertical") ?? .vertical
         self.autoDownload = userDefaults.bool(forKey: keys.autoDownload)
         self.downloadQuality = userDefaults.string(forKey: keys.downloadQuality) ?? "high"
+        self.libraryMangaIds = Set(userDefaults.stringArray(forKey: keys.libraryManga) ?? [])
+        self.favoriteMangaIds = Set(userDefaults.stringArray(forKey: keys.favoriteManga) ?? [])
+    }
+    
+    func addToLibrary(mangaId: String) {
+        libraryMangaIds.insert(mangaId)
+    }
+    
+    func removeFromLibrary(mangaId: String) {
+        libraryMangaIds.remove(mangaId)
+        favoriteMangaIds.remove(mangaId)
+    }
+    
+    func isInLibrary(mangaId: String) -> Bool {
+        libraryMangaIds.contains(mangaId)
+    }
+    
+    func toggleFavorite(mangaId: String) {
+        if favoriteMangaIds.contains(mangaId) {
+            favoriteMangaIds.remove(mangaId)
+        } else {
+            favoriteMangaIds.insert(mangaId)
+            libraryMangaIds.insert(mangaId) // Also add to library
+        }
+    }
+    
+    func isFavorite(mangaId: String) -> Bool {
+        favoriteMangaIds.contains(mangaId)
     }
     
     func saveReadingProgress(_ progress: ReadingProgress) {

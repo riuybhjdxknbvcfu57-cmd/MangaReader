@@ -3,6 +3,7 @@ import SwiftUI
 struct LibraryView: View {
     @StateObject private var settings = UserDefaultsManager.shared
     @State private var libraryManga: [Manga] = []
+    @State private var isLoading = false
     @State private var showFavoritesOnly = false
     @State private var showDownloadedOnly = false
     
@@ -10,13 +11,7 @@ struct LibraryView: View {
         var result = libraryManga
         
         if showFavoritesOnly {
-            result = result.filter { $0.isFavorite }
-        }
-        
-        if showDownloadedOnly {
-            result = result.filter { manga in
-                manga.chapters.contains { $0.isDownloaded }
-            }
+            result = result.filter { settings.isFavorite(mangaId: $0.id) }
         }
         
         return result
@@ -27,7 +22,10 @@ struct LibraryView: View {
             ZStack {
                 Color.black.ignoresSafeArea()
                 
-                if filteredManga.isEmpty {
+                if isLoading {
+                    ProgressView()
+                        .tint(.white)
+                } else if filteredManga.isEmpty {
                     emptyStateView
                 } else {
                     mangaGridView
@@ -38,7 +36,6 @@ struct LibraryView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
                         Toggle("Favorites Only", isOn: $showFavoritesOnly)
-                        Toggle("Downloaded Only", isOn: $showDownloadedOnly)
                     } label: {
                         Image(systemName: "line.3.horizontal.decrease.circle")
                             .foregroundColor(.white)
@@ -46,6 +43,34 @@ struct LibraryView: View {
                 }
             }
         }
+        .task {
+            await loadLibrary()
+        }
+        .onReceive(settings.$libraryMangaIds) { _ in
+            Task { await loadLibrary() }
+        }
+    }
+    
+    private func loadLibrary() async {
+        guard !settings.libraryMangaIds.isEmpty else {
+            libraryManga = []
+            return
+        }
+        
+        isLoading = true
+        var loadedManga: [Manga] = []
+        
+        for mangaId in settings.libraryMangaIds {
+            do {
+                let manga = try await MangaDexService.shared.getMangaDetails(id: mangaId)
+                loadedManga.append(manga)
+            } catch {
+                // Skip failed loads
+            }
+        }
+        
+        libraryManga = loadedManga
+        isLoading = false
     }
     
     private var emptyStateView: some View {
